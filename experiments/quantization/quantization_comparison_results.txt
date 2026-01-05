@@ -1,0 +1,91 @@
+================================================================================
+QUANTIZATION METHODS COMPARISON - SOLE + Alpha Factors
+================================================================================
+
+Model: facebook/deit-small-patch16-224
+Data shape: 197 vectors × 384 channels
+Clip threshold: ±7.0
+
+================================================================================
+DETAILED RESULTS
+================================================================================
+
+[Test 1] Asymmetric + No Clipping
+  Global S:      0.0891183217
+  Global ZP:     193
+  MAE:           0.0200090736
+  MSE:           0.0089560663
+  RMSE:          0.0946364956
+  Max Error:     2.7562624613
+  Percent Error: 4.917370%
+
+[Test 2] Asymmetric + Clipping (±7.0)
+  Global S:      0.0490938448
+  Global ZP:     143
+  MAE:           0.0074177796
+  MSE:           0.0014812446
+  RMSE:          0.0384869409
+  Max Error:     10.1858217950
+  Percent Error: 4.333390%
+
+[Test 3] Symmetric Fixed (ZP=128) + No Clipping
+  Global S:      0.1354822174
+  Global ZP:     128
+  MAE:           0.0072489904
+  MSE:           0.0000829163
+  RMSE:          0.0091058405
+  Max Error:     0.0669745085
+  Percent Error: 4.356192%
+
+[Test 4] Symmetric Fixed (ZP=128) + Clipping (±7.0)
+  Global S:      0.0551181102
+  Global ZP:     128
+  MAE:           0.0071502077
+  MSE:           0.0014533695
+  RMSE:          0.0381230837
+  Max Error:     10.2062416077
+  Percent Error: 4.224936%
+
+[Test 5] Symmetric Corrected + No Clipping
+  Global S:      0.1354822174
+  Global ZP:     171
+  MAE:           0.0096541179
+  MSE:           0.0012290702
+  RMSE:          0.0350580981
+  Max Error:     1.2026510877
+  Percent Error: 4.456141%
+
+[Test 6] Symmetric Corrected + Clipping (±7.0)
+  Global S:      0.0551181102
+  Global ZP:     141
+  MAE:           0.0072341487
+  MSE:           0.0014669155
+  RMSE:          0.0383003330
+  Max Error:     10.2062416077
+  Percent Error: 4.228623%
+
+================================================================================
+COMPARISON TABLE
+================================================================================
+
+Method                         Clipping             MAE            RMSE           Max Err        % Err       
+--------------------------------------------------------------------------------------------------------------
+Asymmetric                     No Clipping          0.0200090736   0.0946364956   2.7562624613   4.917370    %
+Asymmetric                     Clipping (±7.0)      0.0074177796   0.0384869409   10.1858217950  4.333390    %
+Symmetric Fixed (ZP=128)       No Clipping          0.0072489904   0.0091058405   0.0669745085   4.356192    %
+Symmetric Fixed (ZP=128)       Clipping (±7.0)      0.0071502077   0.0381230837   10.2062416077  4.224936    %
+Symmetric Corrected            No Clipping          0.0096541179   0.0350580981   1.2026510877   4.456141    %
+Symmetric Corrected            Clipping (±7.0)      0.0072341487   0.0383003330   10.2062416077  4.228623    %
+
+================================================================================
+BEST METHODS
+================================================================================
+
+Best MAE:       Symmetric Fixed (ZP=128) + Clipping (±7.0)
+  MAE = 0.0071502077
+
+Best RMSE:      Symmetric Fixed (ZP=128) + No Clipping
+  RMSE = 0.0091058405
+
+Best Max Error: Symmetric Fixed (ZP=128) + No Clipping
+  Max Error = 0.0669745085

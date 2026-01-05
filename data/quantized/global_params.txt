@@ -1,0 +1,5 @@
+# hidden_dim, num_vectors, global_s, global_zp
+384
+197
+0.1354822174
+128
