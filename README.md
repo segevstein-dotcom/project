@@ -271,7 +271,7 @@ Std Error:      5.24%   (from compression + LUT)
 
 | Metric | Total Error | Algorithm Error |
 |--------|-------------|-----------------|
-| **Mean** | 7.33% | **0.004%** ✨ |
+| **Mean** | 6.36% | **0%** ✨ |
 | **Variance** | 10.40% | 10.20% |
 | **Std Dev** | 5.36% | 5.24% |
 
