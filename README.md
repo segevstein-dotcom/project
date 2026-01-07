@@ -237,7 +237,7 @@ X_int = X_stretched + ZP      # ZP = 128
 
 **Current Results:**
 ```
-Mean Error:     7.33%  (average)
+Mean Error:     6.36%  (average)
 Variance Error: 10.40% (average)
 Std Error:      5.36%  (average)
 ```
