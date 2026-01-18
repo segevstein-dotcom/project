@@ -32,9 +32,11 @@ int validate_against_golden(const float* output, int num_channels,
 // ========================================
 
 // 256-entry LUT for inverse square root: f(x) = 1/sqrt(x)
+// Usage: index = (int)(var_hw / INV_SQRT_INPUT_DIVISOR)
+//        result = (float)LUT[index] / INV_SQRT_OUTPUT_SCALE
 #define INV_SQRT_LUT_SIZE 256
-#define INV_SQRT_INPUT_SCALE 16
-#define INV_SQRT_OUTPUT_SCALE 64
+#define INV_SQRT_INPUT_DIVISOR 128    // Divide var_hw by this to get index (2^7)
+#define INV_SQRT_OUTPUT_SCALE 16384   // Divide LUT value by this to get 1/sqrt (2^14)
 extern uint8_t INV_SQRT_LUT[INV_SQRT_LUT_SIZE];
 
 /*

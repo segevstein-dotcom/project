@@ -1,0 +1,13 @@
+Expected Results for Vector 0
+================================================================================
+
+Ex = 287
+Ex2 = 409225
+mean_hw = 0.7473958333
+mean_sq_hw = 17051.0416666667
+var_hw = 17050.4830661350
+
+Formulas:
+  mean_hw = Ex / 384
+  mean_sq_hw = (Ex2 << 4) / 384  = (Ex2 * 16) / 384
+  var_hw = mean_sq_hw - mean_hw^2

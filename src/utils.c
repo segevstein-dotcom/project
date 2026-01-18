@@ -134,9 +134,12 @@ int load_inv_sqrt_lut() {
 
 /*
  * inv_sqrt_lut: Compute 1/sqrt(x) using LUT
+ * Input: variance (var_hw in hardware domain)
+ * Output: 1/sqrt(variance)
  */
 float inv_sqrt_lut(float variance) {
-    int address = (int)(variance * INV_SQRT_INPUT_SCALE);
+    // Divide variance by INPUT_DIVISOR to get LUT index
+    int address = (int)(variance / INV_SQRT_INPUT_DIVISOR);
     if (address < 0) address = 0;
     if (address >= INV_SQRT_LUT_SIZE) address = INV_SQRT_LUT_SIZE - 1;
 
