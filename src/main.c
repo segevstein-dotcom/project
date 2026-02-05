@@ -37,7 +37,7 @@ int8_t find_min_alpha(const int8_t* alphas, int num_channels) {
 // CORE ALGORITHM
 // ========================================
 
-void stage1_statistics(const PTFLayerNormData* data, int64_t* Ex, int64_t* Ex2, int8_t min_alpha) {
+void stage1(const PTFLayerNormData* data, int64_t* Ex, int64_t* Ex2, int8_t min_alpha) {
     *Ex = 0; *Ex2 = 0;
     for (int i = 0; i < data->num_channels; i++) {
         int16_t xi = (int16_t)data->quantized_values[i] - (int16_t)data->zero_points[i];
@@ -58,7 +58,7 @@ const uint32_t STD_INV_LUT[16] = {
     512,  482,  458,  436, 418, 401, 387, 374
 };
 
-void stage2_affine_hardware_style(const PTFLayerNormData* data, int64_t Ex, int64_t Ex2, int8_t min_alpha, int8_t* Y_out_int8) {
+void stage2(const PTFLayerNormData* data, int64_t Ex, int64_t Ex2, int8_t min_alpha, int8_t* Y_out_int8) {
     int C = data->num_channels;
     int64_t mu = Ex / C; 
     int64_t mean_sq = (Ex2 << 4) / C; 
@@ -114,7 +114,7 @@ int main() {
 
         int8_t min_alpha = find_min_alpha(data.alpha_factors, data.num_channels);
         int64_t Ex, Ex2;
-        stage1_statistics(&data, &Ex, &Ex2, min_alpha);
+        stage1(&data, &Ex, &Ex2, min_alpha);
 
         // חישוב ערכים ב-C
         float fs = powf(2.0f, (float)min_alpha) * data.global_s;
@@ -122,7 +122,7 @@ int main() {
         float var_c = ((float)(Ex2 << 4) / data.num_channels - powf((float)Ex/data.num_channels, 2)) * (fs * fs);
 
         int8_t Y_out[MAX_CHANNELS];
-        stage2_affine_hardware_style(&data, Ex, Ex2, min_alpha, Y_out);
+        stage2(&data, Ex, Ex2, min_alpha, Y_out);
 
         // טעינת ערכי Golden מהקובץ
         char golden_path[512];
