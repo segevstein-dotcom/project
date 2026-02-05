@@ -206,5 +206,4 @@ Avg. Statistics Error (Mean): 5.65%
 Avg. Statistics Error (Var) : 10.62%
 --------------------------------------------------
 OVERALL ALGORITHM PRECISION (MAE): 4.5401%
-Worst Case Precision (Vec #0): 8.7017%
 ==================================================

@@ -168,7 +168,6 @@ int main() {
     fprintf(f, "Avg. Statistics Error (Var) : %.2f%%\n", total_var_err_pct / NUM_VECTORS);
     fprintf(f, "--------------------------------------------------\n");
     fprintf(f, "OVERALL ALGORITHM PRECISION (MAE): %.4f%%\n", (global_total_mae / NUM_VECTORS) * 100.0f);
-    fprintf(f, "Worst Case Precision (Vec #%d): %.4f%%\n", max_mae_vec_idx, max_mae * 100.0f);
     fprintf(f, "==================================================\n");
 
     fclose(f);
