@@ -315,9 +315,50 @@ def generate_golden_reference(original_vector, quantized_vector, global_zp, glob
     reconstructed_mean = np.mean(reconstructed_values)
     reconstructed_var = np.var(reconstructed_values)
 
-    # 3. Calculate Expected Output (Stage 2) using ORIGINAL statistics
+    # 3. Determine which affine params to use: prefer dequantized quantized-gamma/beta
+    gamma_deq = None
+    beta_deq = None
+
+    gamma_q_path = os.path.join(OUTPUT_DIR, "gamma_quantized.txt")
+    beta_q_path = os.path.join(OUTPUT_DIR, "beta_quantized.txt")
+
+    def _read_and_dequantize(path):
+        try:
+            with open(path, 'r') as fh:
+                lines = [l.strip() for l in fh.readlines() if l.strip() != '']
+            # remove comment lines
+            data_lines = [l for l in lines if not l.startswith('#')]
+            if len(data_lines) < 4:
+                return None
+            count = int(data_lines[0])
+            scale = float(data_lines[1])
+            zp = int(data_lines[2])
+            vals = [int(x) for x in data_lines[3:3+count]]
+            deq = np.array([(v - zp) * scale for v in vals], dtype=np.float64)
+            return deq
+        except Exception:
+            return None
+
+    gamma_deq = _read_and_dequantize(gamma_q_path)
+    beta_deq = _read_and_dequantize(beta_q_path)
+
+    if gamma_deq is None or beta_deq is None:
+        # Fallback to provided float params if quantized files missing
+        if gamma is None:
+            gamma_deq = np.ones(len(alpha_factors), dtype=np.float64)
+        else:
+            gamma_deq = np.array(gamma, dtype=np.float64)
+        if beta is None:
+            beta_deq = np.zeros(len(alpha_factors), dtype=np.float64)
+        else:
+            beta_deq = np.array(beta, dtype=np.float64)
+        print("⚠️  Using original float gamma/beta for golden (quantized files not found)")
+    else:
+        print("✓ Using dequantized gamma/beta from quantized export for golden reference")
+
+    # 4. Calculate Expected Output (Stage 2) using ORIGINAL statistics
     std_inv = 1.0 / np.sqrt(golden_var + 1e-6)
-    golden_output = (reconstructed_values - golden_mean) * std_inv * gamma + beta
+    golden_output = (reconstructed_values - golden_mean) * std_inv * gamma_deq + beta_deq
 
     # 4. Print to Console
     print("="*40)

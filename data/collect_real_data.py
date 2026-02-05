@@ -1,3 +1,4 @@
+from sympy import beta
 import torch
 import torch.nn as nn
 from transformers import AutoModelForImageClassification, AutoImageProcessor
@@ -252,7 +253,7 @@ def calculate_and_quantize_with_ptf(vectors_matrix):
     for alpha in alpha_factors:
         alpha_distribution[alpha] = alpha_distribution.get(alpha, 0) + 1
     
-    print(f"\nAlpha factor distribution:")
+    print(f"\nAlpha factor distribution:")  
     for alpha_val in sorted(alpha_distribution.keys()):
         count = alpha_distribution[alpha_val]
         percentage = (count / len(alpha_factors)) * 100
@@ -323,13 +324,18 @@ def save_ptf_data(raw_matrix, quantized_vectors, alpha_factors, global_s, global
     # 5b. Quantize and Export Gamma & Beta (8-bit per-channel)
     if gamma is not None and beta is not None:
         # Quantize gamma (affine weight)
-        gamma_min, gamma_max = float(np.min(gamma)), float(np.max(gamma))
+        # gamma_min, gamma_max = float(np.min(gamma)), float(np.max(gamma)) 
+        # אנחנו לוקחים גבולות קצת יותר הדוקים כדי לשפר את הדיוק של הרוב
+        gamma_min = np.percentile(gamma, 0.1)  
+        gamma_max = np.percentile(gamma, 99.9) 
         gamma_scale = (gamma_max - gamma_min) / 255.0
         gamma_zp = int(round(-gamma_min / gamma_scale))
         gamma_quantized = np.clip(np.round(gamma / gamma_scale) + gamma_zp, 0, 255).astype(np.uint8)
 
         # Quantize beta (affine bias)
-        beta_min, beta_max = float(np.min(beta)), float(np.max(beta))
+        # beta_min, beta_max = float(np.min(beta)), float(np.max(beta))
+        beta_min = np.percentile(beta, 0.1) 
+        beta_max = np.percentile(beta, 99.9) 
         beta_scale = (beta_max - beta_min) / 255.0
         beta_zp = int(round(-beta_min / beta_scale))
         beta_quantized = np.clip(np.round(beta / beta_scale) + beta_zp, 0, 255).astype(np.uint8)
@@ -444,6 +450,32 @@ def generate_golden_reference(original_vector, quantized_vector, global_zp, glob
         for val in golden_output:
             f.write(f"{val:.6f}\n")
             
+def generate_golden_reference_all(original_vector, quantized_vector, global_zp, global_s, alpha_factors, gamma, beta, vector_idx):
+    # חישוב הסטטיסטיקה המקורית
+    golden_mean = np.mean(original_vector)
+    golden_var = np.var(original_vector)
+    std_inv = 1.0 / np.sqrt(golden_var + 1e-6)
+    
+    # שחזור ערכים (Dequantization)
+    reconstructed = []
+    for i in range(len(quantized_vector)):
+        x_stretched = int(quantized_vector[i]) - int(global_zp)
+        x_norm = x_stretched * (2 ** int(alpha_factors[i]))
+        reconstructed.append(x_norm * float(global_s))
+    
+    reconstructed = np.array(reconstructed)
+    # חישוב פלט סופי
+    golden_output = (reconstructed - golden_mean) * std_inv * gamma + beta
+    
+    # שמירה לקובץ
+    file_path = os.path.join(OUTPUT_DIR, f"golden_ref_vec{vector_idx:03d}.txt")
+    with open(file_path, "w") as f:
+        f.write(f"ORIGINAL Mean: {golden_mean:.6f}\n")
+        f.write(f"ORIGINAL Variance: {golden_var:.6f}\n")
+        f.write("Output:\n")
+        for val in golden_output:
+            f.write(f"{val:.6f}\n")
+
 def main():
     global collected_data
     collected_data = []
@@ -461,7 +493,10 @@ def main():
     if not hook_attached: return
 
     print("\nLoading test image...")
-    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    # Example image URLs from COCO dataset
+    url = "http://images.cocodataset.org/val2017/000000000632.jpg"
+    # url ="http://images.cocodataset.org/val2017/000000000139.jpg"
+    # url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image = Image.open(requests.get(url, stream=True).raw)
     inputs = processor(images=image, return_tensors="pt")
     
@@ -485,8 +520,18 @@ def main():
 
     # Pass ORIGINAL vector and quantized vector to golden reference generator
     generate_golden_reference(vectors_matrix[0], quantized_vectors[0], global_zp, global_s, alpha_factors, gamma, beta, vector_idx=0)
+    # --- הפקה של כל קבצי ה-Golden עבור כל הווקטורים ---
+    print(f"\nGenerating Golden Reference for all {len(quantized_vectors)} vectors...")
+    for i in range(len(quantized_vectors)):
+        # יצירת קובץ לכל וקטור: golden_ref_vec000.txt, golden_ref_vec001.txt וכו'
+        generate_golden_reference_all(vectors_matrix[i], quantized_vectors[i], 
+                                     global_zp, global_s, alpha_factors, 
+                                     gamma, beta, vector_idx=i)
+
+    print("Processing complete. All golden files generated.")
 
     print("Processing complete.")
-
+    
+    
 if __name__ == "__main__":
     main()

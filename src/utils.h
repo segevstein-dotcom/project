@@ -7,6 +7,7 @@
 #define SOLE_UTILS_H
 
 #include "def.h"
+#include <stdio.h>
 
 // ========================================
 // File I/O Functions
@@ -25,7 +26,8 @@ void save_output_with_metadata(const float* output, int num_channels,
  */
 int validate_against_golden(const float* output, int num_channels,
                             float mean, float variance,
-                            const char* golden_file);
+                            const char* golden_file,
+                            FILE* output_stream);
 
 // ========================================
 // LUT Management
@@ -49,3 +51,5 @@ int load_inv_sqrt_lut(void);
 float inv_sqrt_lut(float variance);
 
 #endif // SOLE_UTILS_H
+
+float validate_full_vector_with_dequant(int8_t* Y_c_int8, int n, const PTFLayerNormData* data, const char* golden_path);
