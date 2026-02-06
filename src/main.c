@@ -14,13 +14,14 @@ const uint16_t SQUARE_LUT[16] = {
     64, 81, 100, 121, 144, 169, 196, 225
 };
 
-void dynamic_compress(uint8_t x, uint8_t* compressed, uint8_t* shift) {
-    if (x >= 64) { 
-        *compressed = x >> 4; 
-        *shift = 1;
-    } else { 
-        *compressed = x >> 2; 
-        *shift = 0;
+
+void dynamic_compress(uint8_t x, uint8_t* compressed, uint8_t* s) {
+    if (x < 64) {
+        *compressed = (x + 2) >> 2; 
+        *s = 0;
+    } else {
+        *compressed = (x + 8) >> 4;
+        *s = 1;
     }
     if (*compressed > 15) *compressed = 15;
 }
@@ -53,6 +54,7 @@ void stage1(const PTFLayerNormData* data, int64_t* Ex, int64_t* Ex2, int8_t min_
     }
 }
 
+
 const uint32_t STD_INV_LUT[16] = {
     1448, 1448, 1024, 836, 724, 647, 591, 547,
     512,  482,  458,  436, 418, 401, 387, 374
@@ -81,13 +83,14 @@ void stage2(const PTFLayerNormData* data, int64_t Ex, int64_t Ex2, int8_t min_al
         
         // Final Affine: (X-mu) * std_inv * gamma + beta
         // The shift 16 removes the Q16 scaling
-        int32_t y = (int32_t)(((int64_t)(xi_ptf - (int32_t)mu) * std_inv_q16 * g_q) >> 16) + b_q;
+        // int32_t y = (int32_t)(((int64_t)(xi_ptf - (int32_t)mu) * std_inv_q16 * g_q) >> 16) + b_q;
+        int64_t temp_y = (int64_t)(xi_ptf - (int32_t)mu) * std_inv_q16 * g_q;
+        int32_t y = (int32_t)((temp_y + (1 << 15)) >> 16) + b_q;
         
         if (y > 127) y = 127; else if (y < -128) y = -128;
         Y_out_int8[i] = (int8_t)y;
     }
 }
-
 
 int main() {
     PTFLayerNormData data;
@@ -116,13 +119,14 @@ int main() {
         int64_t Ex, Ex2;
         stage1(&data, &Ex, &Ex2, min_alpha);
 
+        int8_t Y_out[MAX_CHANNELS];
+        stage2(&data, Ex, Ex2, min_alpha, Y_out);
+
         // חישוב ערכים ב-C
         float fs = powf(2.0f, (float)min_alpha) * data.global_s;
         float mean_c = ((float)Ex / data.num_channels) * fs;
         float var_c = ((float)(Ex2 << 4) / data.num_channels - powf((float)Ex/data.num_channels, 2)) * (fs * fs);
-
-        int8_t Y_out[MAX_CHANNELS];
-        stage2(&data, Ex, Ex2, min_alpha, Y_out);
+        //float var_c = ((float)Ex2 / data.num_channels - powf((float)Ex / data.num_channels, 2)) * (fs * fs);
 
         // טעינת ערכי Golden מהקובץ
         char golden_path[512];
@@ -174,3 +178,4 @@ int main() {
     printf("Comprehensive report generated: final_report.txt\n");
     return 0;
 }
+
