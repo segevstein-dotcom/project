@@ -372,109 +372,55 @@ def save_ptf_data(raw_matrix, quantized_vectors, alpha_factors, global_s, global
         for stat in quantization_stats:
             f.write(f"{stat['vector_idx']}, {stat['max_quantized_value']}, {stat['bit_utilization']*100:.1f}%\n")
 
-def generate_golden_reference(original_vector, quantized_vector, global_zp, global_s, alpha_factors, gamma, beta, vector_idx=0):
-    """
-    Generates golden reference using ORIGINAL input statistics.
-    The mean/variance should be from the ORIGINAL input (before quantization),
-    not from the reconstructed (dequantized) values.
 
-    SEQUENTIAL DEQUANTIZATION (inverse of sequential quantization, SOLE paper):
-    - X_stretched = X_int - ZP
-    - X_norm = X_stretched × 2^α  (when α is negative, this divides → unstretch)
-    - X_real = X_norm × S
+def generate_golden_reference(original_vector, quantized_vector, global_zp, global_s, alpha_factors, gamma, beta, vector_idx):
     """
-    print(f"\nGenerating Golden Reference for Vector #{vector_idx}...")
-
-    # 1. Calculate Expected Stats from ORIGINAL input (before quantization)
+    מפיקה Golden Reference עבור וקטור ספציפי.
+    הפונקציה מבצעת דקוונטיזציה מלאה ומחשבת את פלט ה-LayerNorm 
+    בהתבסס על הסטטיסטיקה של הוקטור המקורי (לפני קוונטיזציה).
+    """
+    
+    # 1. חישוב סטטיסטיקה מקורית (Gold Standard)
     golden_mean = np.mean(original_vector)
     golden_var = np.var(original_vector)
-    golden_std = np.sqrt(golden_var)
-
-    # 2. Reconstruct values using SEQUENTIAL dequantization
-    reconstructed_values = []
-    for i in range(len(quantized_vector)):
-        q_val = int(quantized_vector[i])
-        zp = int(global_zp)
-        alpha = int(alpha_factors[i])
-        s = float(global_s)
-
-        # Sequential Dequantization (SOLE paper, inverse of quantization):
-        # Step 1: Remove ZP
-        x_stretched = q_val - zp
-        # Step 2: Unstretch (multiply by 2^α, when α negative this divides)
-        x_norm = x_stretched * (2 ** alpha)
-        # Step 3: Denormalize (multiply by S)
-        x_real = x_norm * s
-
-        reconstructed_values.append(x_real)
-
-    reconstructed_values = np.array(reconstructed_values)
-
-    # Recalculate mean/var from reconstructed for comparison
-    reconstructed_mean = np.mean(reconstructed_values)
-    reconstructed_var = np.var(reconstructed_values)
-
-    # 3. Calculate Expected Output (Stage 2) using ORIGINAL statistics
     std_inv = 1.0 / np.sqrt(golden_var + 1e-6)
-    golden_output = (reconstructed_values - golden_mean) * std_inv * gamma + beta
-
-    # 4. Print to Console
-    print("="*40)
-    print("🌟 GOLDEN REFERENCE 🌟")
-    print("="*40)
-    print(f"Global Scale (S):     {global_s:.8f}")
-    print(f"Global ZP:            {global_zp}")
-    print(f"ORIGINAL Mean:        {golden_mean:.6f}")
-    print(f"ORIGINAL Variance:    {golden_var:.6f}")
-    print(f"ORIGINAL Std:         {golden_std:.6f}")
-    print(f"Reconstructed Mean:   {reconstructed_mean:.6f} (after quant+dequant)")
-    print(f"Reconstructed Var:    {reconstructed_var:.6f} (after quant+dequant)")
-    print(f"Mean Error:           {abs(golden_mean - reconstructed_mean):.6f}")
-    print(f"Var Error:            {abs(golden_var - reconstructed_var):.6f}")
-    print("-" * 20)
-    print("First 5 Expected Outputs:")
-    for i in range(5):
-        print(f"  [{i}] {golden_output[i]:.4f}")
-    print("="*40)
     
-    # 5. Save to file
-    with open(os.path.join(OUTPUT_DIR, "golden_ref_vec000.txt"), "w") as f:
-        f.write(f"# Golden Reference for Vector 0\n")
-        f.write(f"Global S: {global_s:.10f}\n")
-        f.write(f"Global ZP: {global_zp}\n")
+    # 2. שחזור ערכים (Sequential Dequantization לפי ה-SOLE Paper)
+    # X_real = ((X_int - ZP) * 2^alpha) * S
+    reconstructed = []
+    for i in range(len(quantized_vector)):
+        x_stretched = int(quantized_vector[i]) - int(global_zp)
+        x_norm = x_stretched * (2.0 ** int(alpha_factors[i]))
+        reconstructed.append(x_norm * float(global_s))
+    
+    reconstructed = np.array(reconstructed)
+    
+    # 3. חישוב פלט ה-LayerNorm הסופי (Stage 2)
+    # Y = (X_reconstructed - Mean_original) * StdInv_original * Gamma + Beta
+    golden_output = (reconstructed - golden_mean) * std_inv * gamma + beta
+    
+    # 4. הדפסת סיכום עבור הווקטור הראשון בלבד (לצורך בדיקת שפיות)
+    if vector_idx == 0:
+        print(f"\n" + "="*40)
+        print(f"🌟 GOLDEN REFERENCE SUMMARY (Vector #{vector_idx})")
+        print(f"="*40)
+        print(f"Original Mean:    {golden_mean:.6f}")
+        print(f"Original Var:     {golden_var:.6f}")
+        print(f"Reconstructed Mean: {np.mean(reconstructed):.6f}")
+        print(f"Reconstructed Var:  {np.var(reconstructed):.6f}")
+        print("-" * 40)
+
+    # 5. שמירה לקובץ
+    file_path = os.path.join(OUTPUT_DIR, f"golden_ref_vec{vector_idx:03d}.txt")
+    with open(file_path, "w", encoding='utf-8') as f:
         f.write(f"ORIGINAL Mean: {golden_mean:.6f}\n")
         f.write(f"ORIGINAL Variance: {golden_var:.6f}\n")
-        f.write(f"Reconstructed Mean: {reconstructed_mean:.6f}\n")
-        f.write(f"Reconstructed Variance: {reconstructed_var:.6f}\n")
         f.write("Output:\n")
         for val in golden_output:
             f.write(f"{val:.6f}\n")
             
-def generate_golden_reference_all(original_vector, quantized_vector, global_zp, global_s, alpha_factors, gamma, beta, vector_idx):
-    # חישוב הסטטיסטיקה המקורית
-    golden_mean = np.mean(original_vector)
-    golden_var = np.var(original_vector)
-    std_inv = 1.0 / np.sqrt(golden_var + 1e-6)
-    
-    # שחזור ערכים (Dequantization)
-    reconstructed = []
-    for i in range(len(quantized_vector)):
-        x_stretched = int(quantized_vector[i]) - int(global_zp)
-        x_norm = x_stretched * (2 ** int(alpha_factors[i]))
-        reconstructed.append(x_norm * float(global_s))
-    
-    reconstructed = np.array(reconstructed)
-    # חישוב פלט סופי
-    golden_output = (reconstructed - golden_mean) * std_inv * gamma + beta
-    
-    # שמירה לקובץ
-    file_path = os.path.join(OUTPUT_DIR, f"golden_ref_vec{vector_idx:03d}.txt")
-    with open(file_path, "w") as f:
-        f.write(f"ORIGINAL Mean: {golden_mean:.6f}\n")
-        f.write(f"ORIGINAL Variance: {golden_var:.6f}\n")
-        f.write("Output:\n")
-        for val in golden_output:
-            f.write(f"{val:.6f}\n")
+    return golden_mean, golden_var
+
 
 def main():
     global collected_data
@@ -494,8 +440,8 @@ def main():
 
     print("\nLoading test image...")
     # Example image URLs from COCO dataset
-    url = "http://images.cocodataset.org/val2017/000000000632.jpg"
-    # url ="http://images.cocodataset.org/val2017/000000000139.jpg"
+    # url = "http://images.cocodataset.org/val2017/000000000632.jpg"
+    url ="http://images.cocodataset.org/val2017/000000000139.jpg"
     # url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image = Image.open(requests.get(url, stream=True).raw)
     inputs = processor(images=image, return_tensors="pt")
@@ -518,18 +464,18 @@ def main():
     print(f"\nSaving generated files to {OUTPUT_DIR}...")
     save_ptf_data(vectors_matrix, quantized_vectors, alpha_factors, global_s, global_zp, gamma, beta, quantization_stats)
 
-    # Pass ORIGINAL vector and quantized vector to golden reference generator
-    generate_golden_reference(vectors_matrix[0], quantized_vectors[0], global_zp, global_s, alpha_factors, gamma, beta, vector_idx=0)
-    # --- הפקה של כל קבצי ה-Golden עבור כל הווקטורים ---
-    print(f"\nGenerating Golden Reference for all {len(quantized_vectors)} vectors...")
+    print(f"\nGenerating Golden References for {len(quantized_vectors)} vectors...")
     for i in range(len(quantized_vectors)):
-        # יצירת קובץ לכל וקטור: golden_ref_vec000.txt, golden_ref_vec001.txt וכו'
-        generate_golden_reference_all(vectors_matrix[i], quantized_vectors[i], 
-                                     global_zp, global_s, alpha_factors, 
-                                     gamma, beta, vector_idx=i)
+        generate_golden_reference(vectors_matrix[i], quantized_vectors[i], 
+                                  global_zp, global_s, alpha_factors, 
+                                  gamma, beta, vector_idx=i)
+
+    print(f"✓ Created {len(quantized_vectors)} golden reference files in {OUTPUT_DIR}")
+
 
     print("Processing complete. All golden files generated.")
-
+    
+    
     print("Processing complete.")
     
     
